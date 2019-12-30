@@ -1,6 +1,7 @@
 package msgstore
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -10,8 +11,8 @@ import (
 
 // Test executor for message repository
 func TestMessageRepository(t *testing.T) {
-	r := NewMessageRepository("mongodb://root:secret@127.0.0.1:27017/msgbox-mongo?authSource=admin&gssapiServiceName=mongodb", "test")
-	s := &repositoryTestSuite{}
+	r, _ := NewMessageRepository("mongodb://root:secret@127.0.0.1:27017/msgbox-mongo?authSource=admin&gssapiServiceName=mongodb", "test")
+	s := &repositoryTestSuite{context.TODO()}
 	t.Run("StoreMessage", func(t *testing.T) { s.testStoreMessage(t, r) })
 	t.Run("StoreReply", func(t *testing.T) { s.testStoreReply(t, r) })
 	t.Run("GetMessage", func(t *testing.T) { s.testGetMessage(t, r) })
@@ -19,17 +20,17 @@ func TestMessageRepository(t *testing.T) {
 }
 
 // Test suite for message respository
-type repositoryTestSuite struct{}
+type repositoryTestSuite struct{ ctx context.Context }
 
 // Test scenario - store a message
 func (s *repositoryTestSuite) testStoreMessage(t *testing.T, r MessageRepository) {
 
-	r.Purge()
+	r.Purge(s.ctx)
 
 	is := is.New(t)
 
-	msg := &Message{Sender: "alice", Recipients: []string{"bob"}, Subject: "test", Body: "this is a test message"}
-	msgid, err := r.StoreMessage(msg)
+	msg := &Record{Sender: "alice", Recipients: []string{"bob"}, Subject: "test", Body: "this is a test message"}
+	msgid, err := r.StoreMessage(s.ctx, msg)
 
 	is.NoErr(err)
 	is.True(msgid != "")
@@ -39,34 +40,34 @@ func (s *repositoryTestSuite) testStoreMessage(t *testing.T, r MessageRepository
 // Test scenario - store reply to a message
 func (s *repositoryTestSuite) testStoreReply(t *testing.T, r MessageRepository) {
 
-	r.Purge()
+	r.Purge(s.ctx)
 
 	is := is.New(t)
 
-	msg := &Message{Sender: "alice", Recipients: []string{"bob", "peter"}, Subject: "test", Body: "this is a test message"}
-	msgid, err := r.StoreMessage(msg)
+	msg := &Record{Sender: "alice", Recipients: []string{"bob", "peter"}, Subject: "test", Body: "this is a test message"}
+	msgid, err := r.StoreMessage(s.ctx, msg)
 
 	is.NoErr(err)
 	is.True(msgid != "")
 
 	{
-		msg := &Message{ReplyToMsgId: msgid, Sender: "bob", Recipients: []string{"alice"}, Subject: "re:test", Body: "send another message"}
-		mid, err := r.StoreMessage(msg)
+		msg := &Record{ReplyToMsgId: msgid, Sender: "bob", Recipients: []string{"alice"}, Subject: "re:test", Body: "send another message"}
+		mid, err := r.StoreMessage(s.ctx, msg)
 
 		is.NoErr(err)
 		is.True(mid != "")
 	}
 
 	{
-		msg := &Message{ReplyToMsgId: msgid, Sender: "peter", Recipients: []string{"alice"}, Subject: "re:test", Body: "message acknowledged"}
-		mid, err := r.StoreMessage(msg)
+		msg := &Record{ReplyToMsgId: msgid, Sender: "peter", Recipients: []string{"alice"}, Subject: "re:test", Body: "message acknowledged"}
+		mid, err := r.StoreMessage(s.ctx, msg)
 
 		is.NoErr(err)
 		is.True(mid != "")
 	}
 
 	{
-		messages, err := r.GetReplyMessages(msgid)
+		messages, err := r.GetReplyMessages(s.ctx, msgid)
 
 		is.NoErr(err)
 		is.True(len(messages) == 2)
@@ -77,17 +78,17 @@ func (s *repositoryTestSuite) testStoreReply(t *testing.T, r MessageRepository) 
 // Test scenario - Get message
 func (s *repositoryTestSuite) testGetMessage(t *testing.T, r MessageRepository) {
 
-	r.Purge()
+	r.Purge(s.ctx)
 
 	is := is.New(t)
 
-	msg := &Message{Sender: "alice", Recipients: []string{"bob"}, Subject: "test", Body: "this is a test message"}
-	msgid, err := r.StoreMessage(msg)
+	msg := &Record{Sender: "alice", Recipients: []string{"bob"}, Subject: "test", Body: "this is a test message"}
+	msgid, err := r.StoreMessage(s.ctx, msg)
 
 	is.NoErr(err)
 
 	{
-		msg, err := r.GetMessage(msgid)
+		msg, err := r.GetMessage(s.ctx, msgid)
 
 		is.NoErr(err)
 		is.Equal(msg.Sender, "alice")
@@ -103,41 +104,41 @@ func (s *repositoryTestSuite) testGetMessage(t *testing.T, r MessageRepository) 
 // Test scenario - get messages sent to user
 func (s *repositoryTestSuite) testGetUserMessages(t *testing.T, r MessageRepository) {
 
-	r.Purge()
+	r.Purge(s.ctx)
 
 	is := is.New(t)
 
-	msg := &Message{Sender: "alice", Recipients: []string{"bob", "peter"}, Subject: "test", Body: "this is a test message"}
-	msgid, err := r.StoreMessage(msg)
+	msg := &Record{Sender: "alice", Recipients: []string{"bob", "peter"}, Subject: "test", Body: "this is a test message"}
+	msgid, err := r.StoreMessage(s.ctx, msg)
 
 	is.NoErr(err)
 	is.True(msgid != "")
 
 	{
-		msg := &Message{ReplyToMsgId: msgid, Sender: "bob", Recipients: []string{"alice", "peter"}, Subject: "re:test", Body: "send another message"}
-		mid, err := r.StoreMessage(msg)
+		msg := &Record{ReplyToMsgId: msgid, Sender: "bob", Recipients: []string{"alice", "peter"}, Subject: "re:test", Body: "send another message"}
+		mid, err := r.StoreMessage(s.ctx, msg)
 
 		is.NoErr(err)
 		is.True(mid != "")
 	}
 
 	{
-		msg := &Message{ReplyToMsgId: msgid, Sender: "bob", Recipients: []string{"alice", "peter"}, Subject: "re:test", Body: "message acknowledged"}
-		mid, err := r.StoreMessage(msg)
+		msg := &Record{ReplyToMsgId: msgid, Sender: "bob", Recipients: []string{"alice", "peter"}, Subject: "re:test", Body: "message acknowledged"}
+		mid, err := r.StoreMessage(s.ctx, msg)
 
 		is.NoErr(err)
 		is.True(mid != "")
 	}
 
 	{
-		messages, err := r.GetUserMessages("alice")
+		messages, err := r.GetUserMessages(s.ctx, "alice")
 
 		is.NoErr(err)
 		is.True(len(messages) == 2)
 	}
 
 	{
-		messages, err := r.GetUserMessages("bob")
+		messages, err := r.GetUserMessages(s.ctx, "bob")
 
 		is.NoErr(err)
 		is.True(len(messages) == 1)
