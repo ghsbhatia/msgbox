@@ -37,6 +37,8 @@ func main() {
 		logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	}
 
+	logger.Log("mongodb url", mongoDBUrl, "msg", "connecting")
+
 	var msgstoresvc msgstore.Service
 	{
 		repository, err := msgstore.NewMessageRepository(mongoDBUrl, dbName)
@@ -48,9 +50,9 @@ func main() {
 		msgstoresvc = msgstore.NewService(repository, httpclient, userServiceUrl)
 	}
 
-	httpLogger := log.With(logger, "component", "http")
-
 	mux := http.NewServeMux()
+
+	httpLogger := log.With(logger, "component", "http")
 
 	mux.Handle("/", msgstore.MakeHandler(msgstoresvc, httpLogger))
 

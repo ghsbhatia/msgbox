@@ -15,5 +15,6 @@ RUN adduser -S -D -H -h /app appuser
 USER appuser
 COPY --from=builder /build/useradminsvc /app/
 WORKDIR /app
+ENV MYSQLDB_URL root@tcp(127.0.0.1:3306)/msgbox
 EXPOSE 6060
 CMD ["./useradminsvc"]
