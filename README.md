@@ -21,6 +21,13 @@ $ docker exec -i msgbox-mysql sh -c 'exec mysql -uroot' < ~/dev/workspace/go-pro
 
 $ docker run --name msgbox-mongo  -e MONGO_INITDB_ROOT_USERNAME=root -e MONGO_INITDB_ROOT_PASSWORD=secret -d -p 8081:8081 -p 27017:27017  mongo:4.0-xenial
 
+### Unit Testing
+
+```
+$ go test  -v ./pkg/useradmin
+$ go test  -v ./pkg/msgstore
+```
+
 ### User Admin Commands
 
 Create a new user
