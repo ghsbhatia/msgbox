@@ -11,11 +11,11 @@ import (
 // Service interface for user admin functions
 type Service interface {
 	// register a new user
-	RegisterUser(context.Context, string) error
+	RegisterUser(context.Context, string) (string, error)
 	// get user for a given name
 	GetUser(context.Context, string) (string, error)
 	// register a new group
-	RegisterGroup(context.Context, string, []string) error
+	RegisterGroup(context.Context, string, []string) (string, error)
 	// get users for a groups
 	GetGroupUsers(context.Context, string) ([]string, error)
 }
@@ -29,7 +29,7 @@ type service struct {
 	repository UserRepository
 }
 
-func (s *service) RegisterUser(ctx context.Context, username string) (err error) {
+func (s *service) RegisterUser(ctx context.Context, username string) (id string, err error) {
 	defer func(begin time.Time) {
 		svcLogger := log.With(ctxlog.Logger(ctx), "component", "service")
 		svcLogger.Log(
@@ -42,14 +42,14 @@ func (s *service) RegisterUser(ctx context.Context, username string) (err error)
 	{
 		exists, err := s.repository.FindUser(ctx, username)
 		if exists {
-			return ErrUserExists
+			return "", ErrUserExists
 		}
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
-	err = s.repository.StoreUser(ctx, username)
-	return err
+	id, err = s.repository.StoreUser(ctx, username)
+	return id, err
 }
 
 func (s *service) GetUser(ctx context.Context, username string) (user string, err error) {
@@ -73,7 +73,7 @@ func (s *service) GetUser(ctx context.Context, username string) (user string, er
 	}
 }
 
-func (s *service) RegisterGroup(ctx context.Context, groupname string, usernames []string) (err error) {
+func (s *service) RegisterGroup(ctx context.Context, groupname string, usernames []string) (id string, err error) {
 	defer func(begin time.Time) {
 		svcLogger := log.With(ctxlog.Logger(ctx), "component", "service")
 		svcLogger.Log(
@@ -85,18 +85,18 @@ func (s *service) RegisterGroup(ctx context.Context, groupname string, usernames
 	}(time.Now())
 	{
 		if usernamesEmpty(usernames) {
-			return ErrGroupEmpty
+			return "", ErrGroupEmpty
 		}
 		exists, err := s.repository.FindGroup(ctx, groupname)
 		if exists {
-			return ErrGroupExists
+			return "", ErrGroupExists
 		}
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
-	err = s.repository.StoreGroup(ctx, groupname, usernames)
-	return err
+	id, err = s.repository.StoreGroup(ctx, groupname, usernames)
+	return id, err
 }
 
 func (s *service) GetGroupUsers(ctx context.Context, groupname string) (users []string, err error) {

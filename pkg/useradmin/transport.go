@@ -65,10 +65,15 @@ func MakeHandler(service Service, logger kitlog.Logger) http.Handler {
 }
 
 type userRegistrationRequest struct {
-	Username string
+	Username string `json:"username"`
 }
 
 type userRegistrationResponse struct {
+	Id string `json:"id"`
+}
+
+func (m *userRegistrationResponse) StatusCode() int {
+	return http.StatusCreated
 }
 
 type userQueryRequest struct {
@@ -76,15 +81,24 @@ type userQueryRequest struct {
 }
 
 type userQueryResponse struct {
-	Username string
+	Id string `json:"id"`
+}
+
+func (m *userQueryResponse) StatusCode() int {
+	return http.StatusOK
 }
 
 type groupRegistrationRequest struct {
-	Groupname string
-	Usernames []string
+	Groupname string   `json:"groupname"`
+	Usernames []string `json:"usernames"`
 }
 
 type groupRegistrationResponse struct {
+	Id string `json:"id"`
+}
+
+func (m *groupRegistrationResponse) StatusCode() int {
+	return http.StatusCreated
 }
 
 type groupQueryRequest struct {
@@ -92,15 +106,22 @@ type groupQueryRequest struct {
 }
 
 type groupQueryResponse struct {
-	Groupname string
-	Usernames []string
+	Groupname string   `json:"groupname"`
+	Usernames []string `json:"usernames"`
+}
+
+func (m *groupQueryResponse) StatusCode() int {
+	return http.StatusOK
 }
 
 func makeUserRegistrationEndpoint(s Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(userRegistrationRequest)
-		err := s.RegisterUser(ctx, req.Username)
-		return userRegistrationResponse{}, err
+		id, err := s.RegisterUser(ctx, req.Username)
+		if err != nil {
+			return nil, err
+		}
+		return &userRegistrationResponse{id}, err
 	}
 }
 
@@ -108,15 +129,21 @@ func makeUserQueryEndpoint(s Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(userQueryRequest)
 		user, err := s.GetUser(ctx, req.Username)
-		return userQueryResponse{user}, err
+		if err != nil {
+			return nil, err
+		}
+		return &userQueryResponse{user}, err
 	}
 }
 
 func makeGroupRegistrationEndpoint(s Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(groupRegistrationRequest)
-		err := s.RegisterGroup(ctx, req.Groupname, req.Usernames)
-		return groupRegistrationResponse{}, err
+		id, err := s.RegisterGroup(ctx, req.Groupname, req.Usernames)
+		if err != nil {
+			return nil, err
+		}
+		return &groupRegistrationResponse{id}, err
 	}
 }
 
@@ -125,15 +152,13 @@ func makeGroupQueryEndpoint(s Service) endpoint.Endpoint {
 		req := request.(groupQueryRequest)
 		groupname := req.Groupname
 		users, err := s.GetGroupUsers(ctx, groupname)
-		return groupQueryResponse{Groupname: groupname, Usernames: users}, err
+		return &groupQueryResponse{Groupname: groupname, Usernames: users}, err
 	}
 }
 
 func decodeUserRegistrationRequest(_ context.Context, r *http.Request) (interface{}, error) {
 
-	var body struct {
-		Username string `json:"username"`
-	}
+	var body userRegistrationRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return nil, err
@@ -158,10 +183,7 @@ func decodeUserQueryRequest(_ context.Context, r *http.Request) (interface{}, er
 
 func decodeGroupRegistrationRequest(_ context.Context, r *http.Request) (interface{}, error) {
 
-	var body struct {
-		Groupname string   `json:"groupname"`
-		Usernames []string `json:"usernames"`
-	}
+	var body groupRegistrationRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return nil, err
@@ -190,8 +212,15 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		encodeError(ctx, e.error(), w)
 		return nil
 	}
-	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	code := http.StatusOK
+	if sc, ok := response.(kithttp.StatusCoder); ok {
+		code = sc.StatusCode()
+	}
+	w.WriteHeader(code)
+	if code == http.StatusNoContent {
+		return nil
+	}
 	return json.NewEncoder(w).Encode(response)
 }
 
@@ -205,6 +234,12 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	switch err {
 	case ErrUserExists:
 		w.WriteHeader(http.StatusConflict)
+	case ErrGroupExists:
+		w.WriteHeader(http.StatusConflict)
+	case ErrUserNotFound:
+		w.WriteHeader(http.StatusNotFound)
+	case ErrGroupNotFound:
+		w.WriteHeader(http.StatusNotFound)
 	default:
 		w.WriteHeader(http.StatusBadRequest)
 	}

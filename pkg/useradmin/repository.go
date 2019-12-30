@@ -9,9 +9,9 @@ import (
 )
 
 type UserRepository interface {
-	StoreUser(context.Context, string) error
+	StoreUser(context.Context, string) (string, error)
 	FindUser(context.Context, string) (bool, error)
-	StoreGroup(context.Context, string, []string) error
+	StoreGroup(context.Context, string, []string) (string, error)
 	FindGroup(context.Context, string) (bool, error)
 	FetchGroupUsers(context.Context, string) ([]string, error)
 	Purge(context.Context) error
@@ -29,10 +29,10 @@ type userRepository struct {
 	db *sql.DB
 }
 
-func (r *userRepository) StoreUser(ctx context.Context, username string) (err error) {
+func (r *userRepository) StoreUser(ctx context.Context, username string) (id string, err error) {
 	tx, txerr := r.startTransaction(ctx)
 	if txerr != nil {
-		return errors.Wrap(txerr, "error starting store user transaction")
+		return "", errors.Wrap(txerr, "error starting store user transaction")
 	}
 	defer func(tx *sql.Tx) {
 		r.completeTransaction(tx, err)
@@ -41,13 +41,14 @@ func (r *userRepository) StoreUser(ctx context.Context, username string) (err er
 	result, err = r.db.ExecContext(ctx, `INSERT INTO users(name) VALUES ( ? )`, username)
 	if err != nil {
 		err = errors.Wrap(err, "error inserting user")
-		return err
+		return "", err
 	}
 	_, err = result.LastInsertId()
 	if err != nil {
 		err = errors.Wrap(err, "error inserting user")
 	}
-	return err
+	id = username
+	return id, err
 }
 
 func (r *userRepository) FindUser(ctx context.Context, username string) (bool, error) {
@@ -59,10 +60,10 @@ func (r *userRepository) FindUser(ctx context.Context, username string) (bool, e
 	return count > 0, nil
 }
 
-func (r *userRepository) StoreGroup(ctx context.Context, groupname string, usernames []string) (err error) {
+func (r *userRepository) StoreGroup(ctx context.Context, groupname string, usernames []string) (id string, err error) {
 	tx, txerr := r.startTransaction(ctx)
 	if txerr != nil {
-		return errors.Wrap(txerr, "error starting store group transaction")
+		return "", errors.Wrap(txerr, "error starting store group transaction")
 	}
 	defer func(tx *sql.Tx) {
 		r.completeTransaction(tx, err)
@@ -71,26 +72,27 @@ func (r *userRepository) StoreGroup(ctx context.Context, groupname string, usern
 	result, err = tx.ExecContext(ctx, `INSERT INTO usergroups(name) VALUES ( ? )`, groupname)
 	if err != nil {
 		err = errors.Wrap(err, "error inserting group")
-		return err
+		return "", err
 	}
 	_, err = result.LastInsertId()
 	if err != nil {
 		err = errors.Wrap(err, "error inserting group")
-		return err
+		return "", err
 	}
 	for _, username := range usernames {
 		result, err = tx.ExecContext(ctx, `INSERT INTO groupusers(groupname,username) VALUES ( ?, ? )`, groupname, username)
 		if err != nil {
 			err = errors.Wrap(err, "error inserting group user")
-			return err
+			return "", err
 		}
 		_, err = result.LastInsertId()
 		if err != nil {
 			err = errors.Wrap(err, "error inserting group user")
-			return err
+			return "", err
 		}
 	}
-	return err
+	id = groupname
+	return id, err
 }
 
 func (r *userRepository) FindGroup(ctx context.Context, groupname string) (bool, error) {

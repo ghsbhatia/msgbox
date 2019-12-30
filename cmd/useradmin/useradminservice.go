@@ -13,14 +13,16 @@ import (
 )
 
 const (
-	defaultPort = "8080"
+	defaultPort       = "6060"
+	defaultMysqlDbUrl = "root@tcp(127.0.0.1:3306)/msgbox"
 )
 
 func main() {
 
 	var (
-		addr     = envString("PORT", defaultPort)
-		httpAddr = flag.String("http.addr", ":"+addr, "HTTP listen address")
+		addr       = envString("PORT", defaultPort)
+		httpAddr   = flag.String("http.addr", ":"+addr, "HTTP listen address")
+		mysqlDBUrl = envString("MYSQLDB_URL", defaultMysqlDbUrl)
 	)
 
 	flag.Parse()
@@ -33,7 +35,7 @@ func main() {
 
 	var useradminsvc useradmin.Service
 	{
-		repository, err := useradmin.NewUserRepository("root@tcp(127.0.0.1:3306)/msgbox")
+		repository, err := useradmin.NewUserRepository(mysqlDBUrl)
 		if err != nil {
 			logger.Log("error creating repository:", err)
 			os.Exit(1)

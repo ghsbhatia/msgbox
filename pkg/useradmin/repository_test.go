@@ -100,8 +100,9 @@ func (s *repoTestSuite) testStoreNewUser(t *testing.T) {
 
 	{
 		repository := &userRepository{db}
-		err := repository.StoreUser(context.TODO(), "tstuser")
+		id, err := repository.StoreUser(context.TODO(), "tstuser")
 		is.NoErr(err)
+		is.Equal(id, "tstuser")
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -127,7 +128,7 @@ func (s *repoTestSuite) testStoreDupUser(t *testing.T) {
 
 	{
 		repository := &userRepository{db}
-		err := repository.StoreUser(context.TODO(), "tstuser")
+		_, err := repository.StoreUser(context.TODO(), "tstuser")
 		is.True(err != nil)
 	}
 
@@ -213,8 +214,9 @@ func (s *repoTestSuite) testStoreNewGroup(t *testing.T) {
 
 	{
 		repository := &userRepository{db}
-		err := repository.StoreGroup(context.TODO(), "tstgroup", []string{"tstusr1", "tstusr2"})
+		id, err := repository.StoreGroup(context.TODO(), "tstgroup", []string{"tstusr1", "tstusr2"})
 		is.NoErr(err)
+		is.Equal(id, "tstgroup")
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -240,7 +242,7 @@ func (s *repoTestSuite) testStoreDupGroup(t *testing.T) {
 
 	{
 		repository := &userRepository{db}
-		err := repository.StoreGroup(context.TODO(), "tstgroup", []string{"tstusr1"})
+		_, err := repository.StoreGroup(context.TODO(), "tstgroup", []string{"tstusr1"})
 		is.True(err != nil)
 	}
 

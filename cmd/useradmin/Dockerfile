@@ -15,5 +15,5 @@ RUN adduser -S -D -H -h /app appuser
 USER appuser
 COPY --from=builder /build/useradminsvc /app/
 WORKDIR /app
-EXPOSE 8080
+EXPOSE 6060
 CMD ["./useradminsvc"]
