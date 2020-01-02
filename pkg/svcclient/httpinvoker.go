@@ -3,6 +3,8 @@ package svcclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -32,6 +34,9 @@ func (s *httpserviceClient) Get(svcurl string, v interface{}) error {
 	}
 
 	decode := func(_ context.Context, r *http.Response) (interface{}, error) {
+		if r.StatusCode != http.StatusOK {
+			return nil, errors.New(fmt.Sprintf("%d", r.StatusCode))
+		}
 		body, err := ioutil.ReadAll(r.Body)
 		return body, err
 	}

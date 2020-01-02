@@ -61,6 +61,15 @@ func MakeHandler(service Service, logger kitlog.Logger) http.Handler {
 
 	r.Handle("/users/{userid}/mailbox", getUserMessagesHandler).Methods("GET")
 
+	getRepliesHandler := kithttp.NewServer(
+		makeQueryReplyEndpoint(service),
+		decodeReplyQueryRequest,
+		encodeResponse,
+		opts...,
+	)
+
+	r.Handle("/messages/{msgid}/replies", getRepliesHandler).Methods("GET")
+
 	return middleware.NewHTTPInterceptor(r, logger)
 }
 
@@ -79,12 +88,16 @@ type message struct {
 	Timestamp string   `json:"sentAt"`
 }
 
+type contentHolder interface {
+	body() interface{}
+}
+
 type messageCreateRequest struct {
 	Content message
 }
 
 type messageCreateResponse struct {
-	Id string
+	Id string `json:"id"`
 }
 
 func (m *messageCreateResponse) StatusCode() int {
@@ -96,7 +109,7 @@ type replyCreateRequest struct {
 }
 
 type replyCreateResponse struct {
-	Id string
+	Id string `json:"id"`
 }
 
 func (m *replyCreateResponse) StatusCode() int {
@@ -115,6 +128,10 @@ func (m *messageForIdQueryResponse) StatusCode() int {
 	return http.StatusOK
 }
 
+func (m *messageForIdQueryResponse) body() interface{} {
+	return m.Content
+}
+
 type messagesForUserQueryRequest struct {
 	Username string
 }
@@ -127,6 +144,10 @@ func (m *messagesForUserQueryResponse) StatusCode() int {
 	return http.StatusOK
 }
 
+func (m *messagesForUserQueryResponse) body() interface{} {
+	return m.Content
+}
+
 type replyQueryRequest struct {
 	Id string
 }
@@ -137,6 +158,10 @@ type replyQueryResponse struct {
 
 func (m *replyQueryResponse) StatusCode() int {
 	return http.StatusOK
+}
+
+func (m *replyQueryResponse) body() interface{} {
+	return m.Content
 }
 
 func makeCreateMessageEndpoint(s Service) endpoint.Endpoint {
@@ -174,7 +199,7 @@ func makeQueryMessagesForUserEndpoint(s Service) endpoint.Endpoint {
 func makeQueryReplyEndpoint(s Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(replyQueryRequest)
-		msgs, err := s.GetMessages(ctx, req.Id)
+		msgs, err := s.GetReplies(ctx, req.Id)
 		return &replyQueryResponse{msgs}, err
 	}
 }
@@ -258,6 +283,9 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 	if code == http.StatusNoContent {
 		return nil
 	}
+	if ch, cok := response.(contentHolder); cok {
+		return json.NewEncoder(w).Encode(ch.body())
+	}
 	return json.NewEncoder(w).Encode(response)
 }
 
@@ -269,6 +297,14 @@ type errorer interface {
 func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	switch err {
+	case ErrMsgNotFound:
+		w.WriteHeader(http.StatusNotFound)
+	case ErrUserNotFound:
+		w.WriteHeader(http.StatusNotFound)
+	case ErrGroupNotFound:
+		w.WriteHeader(http.StatusNotFound)
+	case ErrSystemError:
+		w.WriteHeader(http.StatusInternalServerError)
 	default:
 		w.WriteHeader(http.StatusBadRequest)
 	}

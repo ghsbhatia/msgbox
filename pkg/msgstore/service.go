@@ -2,11 +2,17 @@ package msgstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ghsbhatia/msgbox/pkg/svcclient"
 )
+
+const no_docs_in_result = "no documents in result"
+const user_not_found = "user:404"
+const group_not_found = "group:404"
 
 // Service interface for message store functions
 type Service interface {
@@ -39,6 +45,14 @@ type replyMessageRecipient struct {
 // Store the given message
 func (s *service) StoreMessage(ctx context.Context, msg message) (string, error) {
 
+	// Ensure sender is a registered user
+	{
+		_, err := s.getUser(ctx, msg.Sender)
+		if err != nil {
+			return "", s.mapError(err)
+		}
+	}
+
 	if len(msg.Re) > 0 {
 		return s.storeReply(ctx, msg)
 	}
@@ -50,10 +64,14 @@ func (s *service) StoreMessage(ctx context.Context, msg message) (string, error)
 	if len(msg.Recipient.Groupname) > 0 {
 		grpusers, err := s.getGroupUsers(ctx, msg.Recipient.Groupname)
 		if err != nil {
-			return "", err
+			return "", s.mapError(err)
 		}
 		recipients = grpusers
 	} else if len(msg.Recipient.Username) > 0 {
+		_, err := s.getUser(ctx, msg.Recipient.Username)
+		if err != nil {
+			return "", s.mapError(err)
+		}
 		recipients = append(recipients, msg.Recipient.Username)
 	}
 
@@ -76,21 +94,29 @@ func (s *service) GetMessage(ctx context.Context, msgid string) (message, error)
 	if err == nil {
 		msg = mapRecord(record)
 	}
-	return msg, err
+	return msg, s.mapError(err)
 }
 
 // Get messages for a given user
 func (s *service) GetMessages(ctx context.Context, userid string) ([]message, error) {
+	_, iderr := s.getUser(ctx, userid)
+	if iderr != nil {
+		return nil, s.mapError(iderr)
+	}
 	records, err := s.repository.GetUserMessages(ctx, userid)
 	msgs := mapRecords(records)
-	return msgs, err
+	return msgs, s.mapError(err)
 }
 
 // Get reply messages for message identified by given message id
 func (s *service) GetReplies(ctx context.Context, msgid string) ([]message, error) {
+	_, iderr := s.repository.GetMessage(ctx, msgid)
+	if iderr != nil {
+		return nil, s.mapError(iderr)
+	}
 	records, err := s.repository.GetReplyMessages(ctx, msgid)
 	msgs := mapRecords(records)
-	return msgs, err
+	return msgs, s.mapError(err)
 }
 
 // Get users for group identified by given group id
@@ -101,14 +127,30 @@ func (s *service) getGroupUsers(ctx context.Context, groupid string) ([]string, 
 	}
 	requesturl := fmt.Sprintf("%s/groups/%s", s.usersvcurl, groupid)
 	err := s.httpsvclient.Get(requesturl, &group)
+	if err != nil && err.Error() == "404" {
+		err = errors.New("group:404")
+	}
 	return group.Usernames, err
+}
+
+// Get user for given id
+func (s *service) getUser(ctx context.Context, userid string) (string, error) {
+	var user struct {
+		Id string `json:"id"`
+	}
+	requesturl := fmt.Sprintf("%s/users/%s", s.usersvcurl, userid)
+	err := s.httpsvclient.Get(requesturl, &user)
+	if err != nil && err.Error() == "404" {
+		err = errors.New("user:404")
+	}
+	return user.Id, err
 }
 
 // Get recipients for the reply to message identified by given message id
 func (s *service) getReplyRecipient(ctx context.Context, msgid string) (*replyMessageRecipient, error) {
 	record, err := s.repository.GetMessage(ctx, msgid)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err)
 	}
 	return &replyMessageRecipient{record.Sender, record.GroupId}, err
 }
@@ -116,9 +158,14 @@ func (s *service) getReplyRecipient(ctx context.Context, msgid string) (*replyMe
 // Store reply message by deriving recipient from original message
 func (s *service) storeReply(ctx context.Context, msg message) (string, error) {
 
+	_, iderr := s.repository.GetMessage(ctx, msg.Re)
+	if iderr != nil {
+		return "", s.mapError(iderr)
+	}
+
 	recipient, err := s.getReplyRecipient(ctx, msg.Re)
 	if err != nil {
-		return "", err
+		return "", s.mapError(err)
 	}
 
 	var recipients []string
@@ -126,7 +173,7 @@ func (s *service) storeReply(ctx context.Context, msg message) (string, error) {
 		var err error
 		recipients, err = s.getGroupUsers(ctx, recipient.group)
 		if err != nil {
-			return "", err
+			return "", s.mapError(err)
 		}
 	}
 
@@ -143,6 +190,24 @@ func (s *service) storeReply(ctx context.Context, msg message) (string, error) {
 
 	return s.repository.StoreMessage(ctx, record)
 
+}
+
+// Map DB Error to Service Error
+func (s *service) mapError(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	if strings.Contains(msg, no_docs_in_result) {
+		return ErrMsgNotFound
+	}
+	if strings.Contains(msg, user_not_found) {
+		return ErrUserNotFound
+	}
+	if strings.Contains(msg, group_not_found) {
+		return ErrGroupNotFound
+	}
+	return ErrSystemError
 }
 
 // Append an element to collection if it is not already present.

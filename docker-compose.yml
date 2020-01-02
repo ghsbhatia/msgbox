@@ -1,0 +1,53 @@
+version: '3.4'
+services:
+  webproxy:
+    container_name: webproxy
+    image: dhsbhatia/mboxproxy:1.0
+    ports:
+      - 80:80
+    links:
+      - msgstoresvc
+      - useradminsvc
+  msgstoresvc:
+    container_name: msgstoresvc
+    image: dhsbhatia/mboxmsgstoresvc:1.0
+    environment:
+    - MONGODB_URL=mongodb://root:secret@msgstoredb:27017/msgstoredb?authSource=admin&gssapiServiceName=mongodb
+    - USERSVC_URL=http://useradminsvc:6060
+    ports:
+      - 6080:6080
+    depends_on:
+      - msgstoredb
+      - useradminsvc
+    links:
+      - msgstoredb
+      - useradminsvc
+  useradminsvc:
+    container_name: useradminsvc
+    image: dhsbhatia/mboxuseradminsvc:1.0
+    environment:
+    - MYSQLDB_URL=root@tcp(useradmindb:3306)/msgbox
+    ports:
+      - 6060:6060
+    depends_on:
+      - useradmindb
+    links:
+      - useradmindb
+  useradmindb:
+    container_name: useradmindb
+    image: mysql:8.0
+    environment:
+      - MYSQL_USER=root
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+      - MYSQL_DATABASE=msgbox
+    ports:
+      - 3306:3306
+  msgstoredb:
+    container_name: msgstoredb
+    image: mongo:4.0-xenial
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=secret
+    ports:
+      - 8081:8081
+      - 27017:27017

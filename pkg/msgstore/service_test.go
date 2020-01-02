@@ -21,6 +21,16 @@ func (m *MockedSvcClient) Get(url string, v interface{}) error {
 	return err
 }
 
+type MockedUserSvcClient struct {
+	Id string
+}
+
+func (m *MockedUserSvcClient) Get(url string, v interface{}) error {
+	bytearray, _ := json.Marshal(m)
+	err := json.Unmarshal(bytearray, v)
+	return err
+}
+
 type MockedRepository struct {
 	mock.Mock
 }
@@ -78,7 +88,9 @@ func (s *serviceTestSuite) testStoreMessageForUser(t *testing.T) {
 	repository := new(MockedRepository)
 	repository.On("StoreMessage", ctx, rec).Return("id:01", nil)
 
-	service := NewService(repository, nil, "/foo")
+	svcclient := &MockedUserSvcClient{"user"}
+
+	service := NewService(repository, svcclient, "/foo")
 
 	rcv := receiver{Username: "user1"}
 	msg := message{Sender: "tester", Subject: "test", Body: "body", Recipient: rcv}
@@ -141,7 +153,9 @@ func (s *serviceTestSuite) testStoreReply(t *testing.T) {
 	repository.On("GetMessage", ctx, "id:01").Return(rec1, nil)
 	repository.On("StoreMessage", ctx, rec2).Return("id:02", nil)
 
-	service := NewService(repository, nil, "/foo")
+	svcclient := &MockedUserSvcClient{"user"}
+
+	service := NewService(repository, svcclient, "/foo")
 
 	msg := message{Re: "id:01", Sender: "user1", Subject: "re:test", Body: "body"}
 
@@ -167,7 +181,9 @@ func (s *serviceTestSuite) testGetMessageForId(t *testing.T) {
 	repository := new(MockedRepository)
 	repository.On("GetMessage", ctx, "id:01").Return(rec, nil)
 
-	service := NewService(repository, nil, "/foo")
+	svcclient := &MockedUserSvcClient{"user"}
+
+	service := NewService(repository, svcclient, "/foo")
 
 	msg, _ := service.GetMessage(ctx, "id:01")
 
@@ -229,7 +245,9 @@ func (s *serviceTestSuite) testGetMessagesForUser(t *testing.T) {
 	repository := new(MockedRepository)
 	repository.On("GetUserMessages", ctx, "user1").Return([]Record{rec1, rec2, rec3, rec4}, nil)
 
-	service := NewService(repository, nil, "/foo")
+	svcclient := &MockedUserSvcClient{"user"}
+
+	service := NewService(repository, svcclient, "/foo")
 
 	msgs, _ := service.GetMessages(ctx, "user1")
 
@@ -283,6 +301,14 @@ func (s *serviceTestSuite) testGetMessagesForUser(t *testing.T) {
 // Test scenario - Get reply messages
 func (s *serviceTestSuite) testGetReplyMessages(t *testing.T) {
 	ctx, ts1, ts2 := context.TODO(), time.Now(), time.Now()
+	rec0 := Record{
+		Id:         "idtest",
+		Sender:     "user2",
+		Subject:    "test",
+		Body:       "body",
+		Recipients: []string{"user1"},
+		Timestamp:  time.Now(),
+	}
 	rec1 := Record{
 		Id:           "id:01",
 		ReplyToMsgId: "idtest",
@@ -303,9 +329,12 @@ func (s *serviceTestSuite) testGetReplyMessages(t *testing.T) {
 	}
 
 	repository := new(MockedRepository)
+	repository.On("GetMessage", ctx, "idtest").Return(rec0, nil)
 	repository.On("GetReplyMessages", ctx, "idtest").Return([]Record{rec1, rec2}, nil)
 
-	service := NewService(repository, nil, "/foo")
+	svcclient := &MockedUserSvcClient{"user"}
+
+	service := NewService(repository, svcclient, "/foo")
 
 	msgs, _ := service.GetReplies(ctx, "idtest")
 
