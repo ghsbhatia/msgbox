@@ -11,11 +11,10 @@ msgstoreservice to create and query messages as well as send replies to messages
 
 ### Requirements
 
-- [Glide](https://github.com/Masterminds/glide#install)
 - [Go](https://golang.org/doc/install)
 - [Docker](https://docs.docker.com/get-docker/)
 
-### Database Setup
+### Database Setup Locally
 
 #### MySQL 
 
@@ -32,7 +31,7 @@ docker run --name msgbox-mongo  -e MONGO_INITDB_ROOT_USERNAME=root -e MONGO_INIT
 ### Fetch vendor dependencies 
 
 ```console
-glide update
+go mod tidy
 ```
 ### Unit Testing 🧪
 
@@ -52,14 +51,14 @@ useradmin $ ./useradminservice
 ```
 ### User Admin Commands 
 
-Create users
+Create users 👨‍💻
 ```console
 curl -X POST -H "Content-Type: application/json" -d '{"username":"Bob"}' http://localhost:6060/users
 curl -X POST -H "Content-Type: application/json" -d '{"username":"Doug"}' http://localhost:6060/users
 curl -X POST -H "Content-Type: application/json" -d '{"username":"Carol"}' http://localhost:6060/users
 curl -X POST -H "Content-Type: application/json" -d '{"username":"Alice"}' http://localhost:6060/users
 ```
-Create a new group
+Create a new group 
 ```console
 curl -X POST -H "Content-Type: application/json" -d '{"groupname":"Engineering", "usernames":["Bob", "Doug", "Carol"]}'  http://localhost:6060/groups
 ```
