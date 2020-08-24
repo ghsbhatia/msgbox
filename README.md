@@ -51,14 +51,14 @@ useradmin $ ./useradminservice
 ```
 ### User Admin Commands 
 
-Create users 👨‍💻
+Create users
 ```console
 curl -X POST -H "Content-Type: application/json" -d '{"username":"Bob"}' http://localhost:6060/users
 curl -X POST -H "Content-Type: application/json" -d '{"username":"Doug"}' http://localhost:6060/users
 curl -X POST -H "Content-Type: application/json" -d '{"username":"Carol"}' http://localhost:6060/users
 curl -X POST -H "Content-Type: application/json" -d '{"username":"Alice"}' http://localhost:6060/users
 ```
-Create a new group 
+Create a new group
 ```console
 curl -X POST -H "Content-Type: application/json" -d '{"groupname":"Engineering", "usernames":["Bob", "Doug", "Carol"]}'  http://localhost:6060/groups
 ```

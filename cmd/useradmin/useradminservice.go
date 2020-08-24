@@ -33,7 +33,6 @@ func main() {
 		logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	}
 
-
 	var useradminsvc useradmin.Service
 	{
 		repository, err := useradmin.NewUserRepository(mysqlDBUrl)
