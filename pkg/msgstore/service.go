@@ -128,7 +128,7 @@ func (s *service) getGroupUsers(ctx context.Context, groupid string) ([]string, 
 	requesturl := fmt.Sprintf("%s/groups/%s", s.usersvcurl, groupid)
 	err := s.httpsvclient.Get(requesturl, &group)
 	if err != nil && err.Error() == "404" {
-		err = errors.New("group:404")
+		err = errors.New(group_not_found)
 	}
 	return group.Usernames, err
 }
@@ -141,7 +141,7 @@ func (s *service) getUser(ctx context.Context, userid string) (string, error) {
 	requesturl := fmt.Sprintf("%s/users/%s", s.usersvcurl, userid)
 	err := s.httpsvclient.Get(requesturl, &user)
 	if err != nil && err.Error() == "404" {
-		err = errors.New("user:404")
+		err = errors.New(user_not_found)
 	}
 	return user.Id, err
 }
